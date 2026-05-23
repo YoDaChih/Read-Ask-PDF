@@ -1,0 +1,107 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+
+      #report-frame {
+        width: 100%;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        background: white;
+        box-sizing: border-box;
+      }
+    </style>
+  </head>
+  <body>
+    <iframe
+      id="report-frame"
+      sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+      title="HTML report"
+    ></iframe>
+
+    <script>
+      const Streamlit = {
+        ready() {
+          window.parent.postMessage(
+            {
+              isStreamlitMessage: true,
+              type: "streamlit:componentReady",
+              apiVersion: 1,
+            },
+            "*"
+          );
+        },
+        setFrameHeight(height) {
+          window.parent.postMessage(
+            {
+              isStreamlitMessage: true,
+              type: "streamlit:setFrameHeight",
+              height,
+            },
+            "*"
+          );
+        },
+        setComponentValue(value) {
+          window.parent.postMessage(
+            {
+              isStreamlitMessage: true,
+              type: "streamlit:setComponentValue",
+              value,
+              dataType: "json",
+            },
+            "*"
+          );
+        },
+      };
+
+      const iframe = document.getElementById("report-frame");
+      let lastSelection = "";
+      let timer = null;
+
+      function sendSelection(text) {
+        const cleaned = (text || "").replace(/\s+/g, " ").trim();
+        if (!cleaned || cleaned === lastSelection) return;
+        lastSelection = cleaned;
+        Streamlit.setComponentValue(cleaned);
+      }
+
+      function attachSelectionListeners() {
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+
+        function captureSelection() {
+          clearTimeout(timer);
+          timer = setTimeout(() => {
+            const selected = iframe.contentWindow.getSelection().toString();
+            sendSelection(selected);
+          }, 350);
+        }
+
+        doc.addEventListener("mouseup", captureSelection);
+        doc.addEventListener("keyup", captureSelection);
+        doc.addEventListener("selectionchange", captureSelection);
+      }
+
+      function render(args) {
+        const height = args.height || 760;
+        iframe.style.height = `${height}px`;
+        iframe.onload = attachSelectionListeners;
+        iframe.srcdoc = args.rendered_html || "";
+        Streamlit.setFrameHeight(height + 8);
+      }
+
+      window.addEventListener("message", (event) => {
+        if (event.data.type !== "streamlit:render") return;
+        render(event.data.args || {});
+      });
+
+      Streamlit.ready();
+    </script>
+  </body>
+</html>
