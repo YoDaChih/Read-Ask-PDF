@@ -64,20 +64,25 @@
       const iframe = document.getElementById("report-frame");
       let lastSelection = "";
       let timer = null;
+      let region = null;
+      let regionActive = false;
+      const MIN_REGION_PERCENT = 2;
 
       function sendSelection(text) {
         const cleaned = (text || "").replace(/\s+/g, " ").trim();
         if (!cleaned || cleaned === lastSelection) return;
         lastSelection = cleaned;
-        Streamlit.setComponentValue(cleaned);
+        Streamlit.setComponentValue({ type: "text", text: cleaned });
       }
 
       function attachSelectionListeners() {
         const doc = iframe.contentDocument || iframe.contentWindow.document;
 
         function captureSelection() {
+          if (regionActive) return;
           clearTimeout(timer);
           timer = setTimeout(() => {
+            if (regionActive) return;
             const selected = iframe.contentWindow.getSelection().toString();
             sendSelection(selected);
           }, 350);
@@ -86,6 +91,64 @@
         doc.addEventListener("mouseup", captureSelection);
         doc.addEventListener("keyup", captureSelection);
         doc.addEventListener("selectionchange", captureSelection);
+
+        function paintBox(clientX, clientY) {
+          const rect = region.page.getBoundingClientRect();
+          const x0 = Math.min(region.startX, clientX);
+          const y0 = Math.min(region.startY, clientY);
+          const x1 = Math.max(region.startX, clientX);
+          const y1 = Math.max(region.startY, clientY);
+          region.box.style.left = `${x0 - rect.left}px`;
+          region.box.style.top = `${y0 - rect.top}px`;
+          region.box.style.width = `${x1 - x0}px`;
+          region.box.style.height = `${y1 - y0}px`;
+        }
+
+        doc.addEventListener("mousedown", (event) => {
+          if (!event.shiftKey || event.button !== 0) return;
+          const page = event.target.closest && event.target.closest(".page");
+          if (!page) return;
+          event.preventDefault();
+          regionActive = true;
+          const box = doc.createElement("div");
+          box.className = "region-box";
+          page.appendChild(box);
+          region = { page, box, startX: event.clientX, startY: event.clientY };
+          paintBox(event.clientX, event.clientY);
+        });
+
+        doc.addEventListener("mousemove", (event) => {
+          if (region) paintBox(event.clientX, event.clientY);
+        });
+
+        doc.addEventListener("mouseup", (event) => {
+          if (!region) return;
+          const current = region;
+          region = null;
+          const rect = current.page.getBoundingClientRect();
+          const x0 = (Math.min(current.startX, event.clientX) - rect.left) / rect.width * 100;
+          const y0 = (Math.min(current.startY, event.clientY) - rect.top) / rect.height * 100;
+          const x1 = (Math.max(current.startX, event.clientX) - rect.left) / rect.width * 100;
+          const y1 = (Math.max(current.startY, event.clientY) - rect.top) / rect.height * 100;
+          current.box.remove();
+
+          if (x1 - x0 >= MIN_REGION_PERCENT && y1 - y0 >= MIN_REGION_PERCENT) {
+            const sel = iframe.contentWindow.getSelection();
+            if (sel) sel.removeAllRanges();
+            Streamlit.setComponentValue({
+              type: "region",
+              page: parseInt(current.page.dataset.page, 10),
+              x0: x0,
+              y0: y0,
+              x1: x1,
+              y1: y1,
+              id: Date.now(),
+            });
+          }
+          setTimeout(() => {
+            regionActive = false;
+          }, 400);
+        });
       }
 
       function render(args) {

@@ -1,26 +1,34 @@
 # PDF Selection Q&A
 
-A Streamlit PDF reader that lets you select text from rendered PDF pages and ask a local Ollama model questions about the selection.
+A local Streamlit PDF reader that lets you select text from rendered PDF pages, ask Codex questions about the selection, and generate a multiple-choice quiz from the selected topic.
+
+> **Local app notice:** this project is designed to run on your own machine with the Codex CLI installed and signed in. It is not a turnkey hosted web app unless the deployment environment can securely provide a working Codex CLI session.
+
+> **Privacy notice:** selected PDF text and cropped figure images are sent to the configured Codex assistant for answers and quiz generation. Do not use sensitive, confidential, or private PDFs unless you are comfortable sending the selected content to that service.
 
 ## Features
 
 - Displays a default PDF from a URL.
 - Allows local PDF upload.
 - Renders each PDF page visually while keeping a selectable text layer.
-- Sends selected text to Ollama.
+- Sends selected text to Codex.
+- Lets you Shift+drag a box around a figure, diagram, chart, or equation to crop that region and send the image to Codex.
+- Falls back to OCR (Tesseract) on the cropped region if Codex cannot accept images, so figure-picking still works.
 - Lets you add an optional follow-up question or instruction before sending the query.
-- Editable Ollama model name, defaulting to `gpt-oss:20b`.
+- Generates one interactive quiz question with four options after Q&A.
+- Randomizes the displayed answer order for each generated quiz.
+- Lets the user pick an answer, submit it, and see pass/fail plus the correct answer.
+- Uses the configured Codex model from `app.py`.
 - Converts common raw LaTeX delimiters into readable Streamlit Markdown math.
+- Limits PDF size, page count, and rendered page dimensions to reduce accidental memory/CPU overload.
 
 ## Requirements
 
 - Python 3.10+
-- Ollama running locally
-- An Ollama model installed, for example:
-
-```bash
-ollama pull gpt-oss:20b
-```
+- Codex CLI installed and signed in with ChatGPT
+- (Optional) Tesseract OCR binary, for the figure OCR fallback:
+  - macOS: `brew install tesseract`
+  - Debian/Ubuntu: `sudo apt-get install tesseract-ocr`
 
 ## Setup
 
@@ -36,6 +44,12 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+Or use the included launcher, which checks that Streamlit and Codex are available:
+
+```bash
+./run_with_codex.sh
+```
+
 The app opens with this default PDF:
 
 ```text
@@ -44,19 +58,25 @@ https://davidtong.org/pdfs/teaching/particle-physics/pp.pdf
 
 You can still upload a local PDF from the UI.
 
+## Safety Limits
+
+The app applies conservative local rendering limits:
+
+- Maximum PDF size: 25 MB
+- Maximum page count: 80 pages
+- Very large rendered pages are rejected before image conversion
+
+These limits are intended to keep public/shared demos from accidentally exhausting memory while rendering every page.
+
 ## Usage
 
-1. Highlight text on the displayed PDF page.
+1. Highlight text on the displayed PDF page, **or** hold `Shift` and drag a box around a figure to pick it as an image.
 2. Optionally type an extra question or instruction in `Add to query`.
 3. Press `Ask`.
 4. The answer appears in the right panel.
-
-Optional environment variables:
-
-```bash
-export OLLAMA_URL="http://127.0.0.1:11434/api/chat"
-export OLLAMA_MODEL="gpt-oss:20b"
-```
+5. Press `Create Quiz` to generate one multiple-choice quiz question for the selected topic.
+6. Pick one answer and press `Submit Answer`.
+7. The app shows pass/fail and reveals the correct answer.
 
 ## Project Files
 
